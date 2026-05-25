@@ -26,17 +26,31 @@ This action sets up an R environment for use in actions by:
 
 ## Inputs
 
-- **r-version** (`'release'`) - Version range or exact version of an R
-  version to use. “devel” is the current development version, and “next”
-  is the next version of R, either R-patched, or R-alpha, R-beta, R-rc
-  or R-prerelease. Use “renv” to retrieve R version recorded in
-  renv.lock file.
+- **r-version** (`'release'`) - R version to use. Possible values are:
+
+  - ‘release’: the last released version available for the current
+    platform. ‘latest’ is the same.
+  - ‘devel’: the last daily development snapshot available.
+  - ‘next’: the next version of R, either R-patched, or R-alpha, R-beta,
+    R-rc or R-prerelease depending on the current stage of the R release
+    process.
+  - ‘renv’: retrieve the R version recorded in `renv.lock` file.
+  - exact R version, e.g. ‘4.4.2’.
+  - minor R version, e.g. ‘4.4’. Chooses the last release from this
+    minor version. (Equivalent to using ‘x’ as the patch version,
+    e.g. ‘4.4.x’.)
+  - major R version, e.g. ‘4’. Chooses the last release from this major
+    version. (Equivalent to using ‘x’ as the minor and patch versions,
+    e.g. ‘4.x.x’.)
+  - ‘oldrel’, the previous version of R, not counting patch versions.
+  - ‘oldrel/n’ (or ‘oldrel-n’): the n-th previous version of R, not
+    counting patch versions.
 
 - **rtools-version** (`''`) - Exact version of Rtools to use. Default
   uses latest suitable rtools for the given version of R. Set it to “42”
   for Rtools42. If it is ‘none’, then Rtools will not be installed.
   (Note that there is still a pre-installed version of Rtools on the
-  GitHub-hoested GHA runners.)
+  GitHub-hosted GHA runners.)
 
 - **Ncpus** (`'1'`) - Value to set the R option `Ncpus` to.
 
@@ -67,9 +81,11 @@ This action sets up an R environment for use in actions by:
 - **update-rtools** (`false`) - Update rtools40 compilers and libraries
   to the latest builds.
 
-- **use-public-rspm** (`false`) - Use the public version of Posit
-  package manager available at <https://packagemanager.posit.co/> to
-  serve binaries for Linux and Windows.
+- **use-public-rspm** - Use the public version of Posit package manager
+  available at <https://packagemanager.posit.co/> to serve binaries for
+  Linux, Windows and macOS. Set to `true` to always enable, `false` to
+  always disable. Defaults to `true` on x86_64 Windows and Linux,
+  `false` on macOS, aarch64 Windows, and container jobs.
 
 - **extra-repositories** (`''`) - One or more extra CRAN-like
   repositories to include in the `repos` global option
@@ -77,6 +93,9 @@ This action sets up an R environment for use in actions by:
 - **working-directory** (`'.'`) - Using the working-directory keyword,
   you can specify a subdirectory of the repo where some relevant file,
   such as “renv.lock”, should be found.
+
+- **cran** (`NA`) - The CRAN mirror to use. If not specified, the CRAN
+  environment variable is used, or finally the default CRAN mirror.
 
 ## Outputs
 

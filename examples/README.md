@@ -92,11 +92,9 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
       R_KEEP_PKG_SOURCE: yes
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-r@v2
-        with:
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -157,7 +155,7 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
@@ -165,7 +163,6 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -240,7 +237,7 @@ jobs:
       R_KEEP_PKG_SOURCE: yes
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
@@ -248,7 +245,6 @@ jobs:
         with:
           r-version: ${{ matrix.config.r }}
           http-user-agent: ${{ matrix.config.http-user-agent }}
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -278,12 +274,11 @@ results to GitHub, like the example here, then you can also use a global
 organization token in an organization secret called `CODECOV_TOKEN`.
 This way you can avoid having to add a secret to each repository of your
 organization. You can find this token at
-`https://app.codecov.io/account/gh/<org>/org-upload-token` where `<org>` is
-your GitHub organization. E.g. for `r-lib` it is at
-https://app.codecov.io/account/gh/r-lib/org-upload-token.
-To see it, you'll need log in to Codecov, and you need to be a Codecov
-admin for the organization.
-
+`https://app.codecov.io/account/gh/<org>/org-upload-token` where `<org>`
+is your GitHub organization. E.g. for `r-lib` it is at
+<https://app.codecov.io/account/gh/r-lib/org-upload-token>. To see it,
+you’ll need log in to Codecov, and you need to be a Codecov admin for
+the organization.
 
 ``` yaml
 # Workflow derived from https://github.com/r-lib/actions/tree/v2/examples
@@ -304,11 +299,9 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-r@v2
-        with:
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -322,15 +315,16 @@ jobs:
             clean = FALSE,
             install_path = file.path(normalizePath(Sys.getenv("RUNNER_TEMP"), winslash = "/"), "package")
           )
+          print(cov)
           covr::to_cobertura(cov)
         shell: Rscript {0}
 
-      - uses: codecov/codecov-action@v4
+      - uses: codecov/codecov-action@v6
         with:
           # Fail if error if not on PR, or if on PR and token is given
           fail_ci_if_error: ${{ github.event_name != 'pull_request' || secrets.CODECOV_TOKEN }}
-          file: ./cobertura.xml
-          plugin: noop
+          files: ./cobertura.xml
+          plugins: noop
           disable_search: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -343,7 +337,7 @@ jobs:
 
       - name: Upload test results
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-test-failures
           path: ${{ runner.temp }}/package
@@ -374,11 +368,9 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-r@v2
-        with:
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -429,7 +421,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/pr-fetch@v2
         with:
@@ -437,7 +429,6 @@ jobs:
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -468,7 +459,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/pr-fetch@v2
         with:
@@ -524,13 +515,15 @@ jobs:
       contents: write
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: renv
 
       - uses: r-lib/actions/setup-renv@v2
 
@@ -592,13 +585,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
-        with:
-          use-public-rspm: true
 
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
@@ -611,7 +602,7 @@ jobs:
 
       - name: Deploy to GitHub pages 🚀
         if: github.event_name != 'pull_request'
-        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
         with:
           clean: false
           branch: gh-pages
@@ -646,14 +637,13 @@ jobs:
       contents: write
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
 
       - name: Install dependencies
         uses: r-lib/actions/setup-r-dependencies@v2
@@ -702,20 +692,18 @@ jobs:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup R
         uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
 
-      - name: Install dependencies
+      - name: Install styler and roxygen2
         uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::styler, any::roxygen2
-          needs: styler
+          packages: styler, roxygen2
 
       - name: Enable styler cache
         run: styler::cache_activate()
@@ -735,7 +723,7 @@ jobs:
         shell: Rscript {0}
 
       - name: Cache styler
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ steps.styler-location.outputs.location }}
           key: ${{ runner.os }}-styler-${{ github.sha }}
@@ -773,7 +761,7 @@ Pages](https://pages.github.com/) or Cloudflare Pages. It uses
 remain consistent across builds. You will need to run `renv::snapshot()`
 locally and commit the `renv.lock` file before using this workflow, and
 after every time you add a new package to `DESCRIPTION`. See [Using renv
-with Continous
+with Continuous
 Integration](https://rstudio.github.io/renv/articles/ci.html) for
 additional information.
 
@@ -810,18 +798,18 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
+          r-version: renv
 
       - uses: r-lib/actions/setup-renv@v2
 
       - name: Cache bookdown results
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: _bookdown_files
           key: bookdown-${{ hashFiles('**/*Rmd') }}
@@ -833,7 +821,7 @@ jobs:
 
       - name: Deploy to GitHub pages 🚀
         if: github.event_name != 'pull_request'
-        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
         with:
           branch: gh-pages
           folder: _book
@@ -869,18 +857,18 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
+          r-version: renv
 
       - uses: r-lib/actions/setup-renv@v2
 
       - name: Cache bookdown results
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: _bookdown_files
           key: bookdown-${{ hashFiles('**/*Rmd') }}
@@ -892,7 +880,7 @@ jobs:
 
       - name: Upload website artifact
         if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: "_book"
 
@@ -911,7 +899,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 ```
 
 ## Build blogdown site
@@ -924,7 +912,7 @@ Pages](https://pages.github.com/) or Cloudflare Pages. It uses
 [renv](https://rstudio.github.io/renv/) to ensure the package versions
 remain consistent across builds. You will need to run `renv::snapshot()`
 locally and commit the `renv.lock` file before using this workflow, see
-[Using renv with Continous
+[Using renv with Continuous
 Integration](https://rstudio.github.io/renv/articles/ci.html) for
 additional information.
 
@@ -961,13 +949,13 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
+          r-version: renv
 
       - uses: r-lib/actions/setup-renv@v2
 
@@ -981,7 +969,7 @@ jobs:
 
       - name: Deploy to GitHub pages 🚀
         if: github.event_name != 'pull_request'
-        uses: JamesIves/github-pages-deploy-action@v4.5.0
+        uses: JamesIves/github-pages-deploy-action@v4.8.0
         with:
           branch: gh-pages
           folder: public
@@ -1017,13 +1005,13 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
+          r-version: renv
 
       - uses: r-lib/actions/setup-renv@v2
 
@@ -1037,7 +1025,7 @@ jobs:
 
       - name: Upload website artifact
         if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: "public"
 
@@ -1056,7 +1044,7 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 ```
 
 ## Shiny App Deployment
@@ -1101,13 +1089,13 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-pandoc@v2
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
+          r-version: renv
 
       - uses: r-lib/actions/setup-renv@v2
 
@@ -1178,11 +1166,10 @@ jobs:
     env:
       GITHUB_PAT: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - uses: r-lib/actions/setup-r@v2
         with:
-          use-public-rspm: true
 
       - name: Install lintr
         run: install.packages("lintr")

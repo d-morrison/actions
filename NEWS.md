@@ -1,10 +1,88 @@
-# development version
+# `v2.12.0` (2026-04-29)
+
+* All node.js actions use node 24 now. Relatedly, all example workflows
+  use recent versions of actions that use node 24.
+
+* `[setup-r]` now uses `use-public-rspm: true` by default on Linux and
+  Windows. macOS binaries require further opt-in with
+  `use-public-rspm: always`.
+
+* It is now possible to require actions to be pinned to a full-length
+  commit SHA in repositories using `r-lib/actions` (#1070).
+
+* `[setup-pandoc][setup-r-dependencies]` now default to Pandoc
+  version 3.8.3.
+
+* `[setup-r-dependencies]` now includes the R architecture in the
+  cache key, so caches for `macos-15` (Apple Silicon) and
+  `macos-15-intel` (Rosetta/x86_64) no longer collide (#1035).
+
+* `[setup-r]` run `apt-get update` without `-qq` on Linux, to make
+  debugging update failures easier (#1058).
+
+# `v2.11.4` (2025-10-08)
+
+* `[setup-r]` correctly installs Rtools again on aarch64 Windows,
+  as needed.
+
+# `v2.11.3` (2025-03-24)
+
+* `[setup-r]` now supports Rtools45, and installs it by default
+  for R >= 4.5.0.
+
+# `v2.11.2` (2025-02-19)
+
+* `[setup-r]` now installs gfortran 14.2 for R 4.5.0 and later (#965).
+
+* `[setup-r]` now does not use PPM on aarch64 Linux, because PPM
+  does not have binary packages for aarch64 Linux, and it would send
+  x86_64 binarires for aarch64 systems as well.
+
+* `[setup-r]` now unlinks `pkg-config@0.29.2` on macOS silently,
+  to avoid an error from the problem matchers (#973).
+
+* `[setup-r-dependencies]` now supports `dependencies: FALSE`
+  (@eitsupi, #961).
+
+* `[setup-r-dependencies]` now creates the `R_LIBS_USER` and
+  `R_LIBS_SITE` library directories (#974).
+
+* `[setup-r-dependencies]` now prints the R repo status (#975).
+
+* Example workflows that use renv now call `setup-r` with
+  `r-version: renv`, to install the R version declared in the
+  `renv.lock` file.
+
+# `v2.11.1` (2024-11-25)
+
+* `[setup-r]` now unlinks the pre-installed pkg-config brew package
+  to fix a clash with the new pkgconf package (#948).
+
+# `v2.11.0` (2024-11-09)
+
+* `[setup-r-dependencies]` parameter `pak-version` can now be `repo` or
+  `none` as well. `repo` means that the action will install pak from
+  the configured repositories, using `install.packages()`. `repo` is
+  appropriate on systems that do not have access to our pak repository
+  on GitHUb. `none` means that the action does not install pak at all.
+  Use this if you want to install pak yourself manually. Set the
+  `R_LIB_FOR_PAK` environment variable to point to the library where pak
+  is installed.
 
 * `[setup-r]` now has a `working-directory` parameter, to be able to
   specify the location of the `renv.lock` file (#922, @calderonsamuel).
 
 * Example check-like workflows now run on all pull requests, not only
   on pull requests against the `main` branch.
+
+* `[setup-r-dependencies]` and `[setup-renv]` now do not use the
+  deprecated `save-always` parameter of `actions/cache`.
+
+* `[setup-renv]` now correctly accepts `bypass-cache: never`, as stated
+  in the documentation.
+
+* `[setup-r-dependencies]` now saves the package cache correctly on
+  Windows with older R (#940).
 
 # `v2.10.1` (2024-08-08)
 
@@ -87,7 +165,7 @@
   unsuccessful workflow runs as well (@schloerke, #695).
 
 * New example workflows `bookdown-gh-pages` and `blogdown-gh-pages` to
-  deploy bookdown books and blogdown sites to GH Pages without commiting
+  deploy bookdown books and blogdown sites to GH Pages without committing
   them into the repository (#856).
 
 # `v2.8.7` (2024-04-05)

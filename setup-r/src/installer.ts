@@ -23,7 +23,6 @@ import * as io from "@actions/io";
 import * as util from "util";
 import * as path from "path";
 import * as fs from "fs";
-import * as restm from "typed-rest-client/RestClient";
 import * as semver from "semver";
 import osInfo from "linux-os-info";
 
@@ -132,7 +131,7 @@ async function acquireR(version: IRVersion) {
     throw `Failed to get R ${version.version}: ${error}`;
   }
 
-  // version.rtools_cersion is always trithy on Windows, but typescript
+  // version.rtools_version is always truthy on Windows, but typescript
   // does not know that
   if (IS_WINDOWS && version.rtools) {
     try {
@@ -152,13 +151,14 @@ async function acquireFortranMacOS(version: string): Promise<string> {
   if (semver.lt(version, "4.3.0")) {
     return acquireFortranMacOSOld();
   } else {
-    return acquireFortranMacOSNew();
+    return acquireFortranMacOSNew(version);
   }
 }
 
-async function acquireFortranMacOSNew(): Promise<string> {
-  let downloadUrl =
-    "https://github.com/r-hub/mac-tools/releases/download/tools/gfortran-12.2-universal.pkg";
+async function acquireFortranMacOSNew(version: string): Promise<string> {
+  let downloadUrl = semver.lt(version, "4.5.0") ?
+	"https://github.com/r-hub/mac-tools/releases/download/tools/gfortran-12.2-universal.pkg" :
+	"https://github.com/R-macos/gcc-14-branch/releases/download/gcc-14.2-darwin-r2.1/gfortran-14.2-universal.pkg";
   let fileName = path.basename(downloadUrl);
   let downloadPath: string | null = null;
   try {
@@ -250,6 +250,17 @@ async function acquireFortranMacOSOld(): Promise<string> {
 
 async function acquireUtilsMacOS() {
   // qpdf is needed by `--as-cran`
+  // https://github.com/r-lib/actions/issues/948
+  try {
+    process.env.HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK = "true";
+    await exec.exec(
+      "brew",
+	[ "unlink", "pkg-config@0.29.2" ],
+	{ silent: true }
+    );
+  } catch (error) {
+    // ignore error, in case it is not pre-installed in the future
+  }
   try {
     process.env.HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK = "true";
     await exec.exec("brew", [
@@ -311,7 +322,7 @@ async function acquireRUbuntu(version: IRVersion): Promise<string> {
   try {
     await core.group("Updating system package data", async () => {
       await exec.exec(
-        "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y -qq",
+        "sudo DEBIAN_FRONTEND=noninteractive apt-get update -y",
       );
     });
     // install gdbi-core and also qpdf, which is used by `--as-cran`
@@ -460,7 +471,11 @@ async function acquireRWindows(version: IRVersion): Promise<string> {
 }
 
 function getRtoolsUrl(version: string): string {
-  if (version == "44" && ARCH == "arm64") {
+  if (version == "45" && ARCH == "arm64") {
+    return "https://github.com/r-hub/rtools45/releases/download/latest/rtools45-aarch64.exe";
+  } else if (version == "45") {
+    return "https://github.com/r-hub/rtools45/releases/download/latest/rtools45.exe";
+  } else if (version == "44" && ARCH == "arm64") {
     return "https://github.com/r-hub/rtools44/releases/download/latest/rtools44-aarch64.exe";
   } else if (version == "44") {
     return "https://github.com/r-hub/rtools44/releases/download/latest/rtools44.exe";
@@ -491,21 +506,24 @@ async function acquireRtools(version: IRVersion) {
   }
 
   const versionNumber = parseInt(rtoolsVersion || "error");
-  const rtools44 = versionNumber >= 44;
-  const rtools43 = !rtools44 && versionNumber >= 43;
-  const rtools42 = !rtools44 && !rtools43 && versionNumber >= 41;
-  const rtools40 = !rtools44 && !rtools43 && !rtools42 && versionNumber >= 40;
-  const rtools3x = !rtools44 && !rtools43 && !rtools42 && !rtools40;
+  const rtools45 = versionNumber >= 45;
+  const rtools44 = !rtools45 && versionNumber >= 44;
+  const rtools43 = !rtools45 && !rtools44 && versionNumber >= 43;
+  const rtools42 = !rtools45 && !rtools44 && !rtools43 && versionNumber >= 41;
+  const rtools40 = !rtools45 && !rtools44 && !rtools43 && !rtools42 && versionNumber >= 40;
+  const rtools3x = !rtools45 && !rtools44 && !rtools43 && !rtools42 && !rtools40;
   var fileName = path.basename(downloadUrl);
 
   // If Rtools is already installed just return, as there is a message box
   // which hangs the build otherwise.
+  const suffix = version.url.match("aarch64") ? "-aarch64" : "";
   if (
-    (rtools44 && fs.existsSync("C:\\Rtools44")) ||
-    (rtools43 && fs.existsSync("C:\\Rtools43")) ||
-    (rtools42 && fs.existsSync("C:\\Rtools42")) ||
-    (rtools40 && fs.existsSync("C:\\Rtools40")) ||
-    (rtools3x && fs.existsSync("C:\\Rtools"))
+    (rtools45 && fs.existsSync("C:\\Rtools45" + suffix)) ||
+    (rtools44 && fs.existsSync("C:\\Rtools44" + suffix)) ||
+    (rtools43 && fs.existsSync("C:\\Rtools43" + suffix)) ||
+    (rtools42 && fs.existsSync("C:\\Rtools42" + suffix)) ||
+    (rtools40 && fs.existsSync("C:\\Rtools40" + suffix)) ||
+    (rtools3x && fs.existsSync("C:\\Rtools" + suffix))
   ) {
     core.debug(
       "Skipping Rtools installation as a suitable Rtools is already installed",
@@ -535,7 +553,19 @@ async function acquireRtools(version: IRVersion) {
   // we never want patches (by default)
   let addpath = core.getInput("windows-path-include-rtools") === "true";
   core.exportVariable("_R_INSTALL_TIME_PATCHES_", "no");
-  if (rtools44) {
+  if (rtools45) {
+    if (addpath) {
+      if (ARCH == "arm64") {
+        core.addPath(`C:\\rtools45-aarch64\\usr\\bin`);
+        core.addPath(
+          `C:\\rtools45-aarch64\\aarch64-w64-mingw32.static.posix\\bin`,
+        );
+      } else {
+        core.addPath(`C:\\rtools45\\usr\\bin`);
+        core.addPath(`C:\\rtools45\\x86_64-w64-mingw32.static.posix\\bin`);
+      }
+    }
+  } else if (rtools44) {
     if (addpath) {
       if (ARCH == "arm64") {
         core.addPath(`C:\\rtools44-aarch64\\usr\\bin`);
@@ -605,6 +635,24 @@ async function acquireGsWindows() {
   });
 }
 
+const RSPM_DOGFOOD_MACOS_ORGS =
+  ['tidyverse', 'r-lib', 'tidymodels', 'rstudio', 'posit-dev', 'jeroen'];
+
+function shouldUsePublicRspm(): boolean {
+  const input = core.getInput("use-public-rspm");
+  if (input === "always") return true;
+  if (input === "false") return false;
+  // not win/linux/macos -> false
+  if (!IS_WINDOWS && !IS_LINUX && !IS_MAC) return false;
+  // non-intel windows -> false
+  if (IS_WINDOWS && ARCH !== 'x86_64') return false;
+  // windows and linux -> true
+  if (IS_WINDOWS || IS_LINUX) return true;
+  // macos -> only Posit orgs
+  const owner = (process.env['GITHUB_REPOSITORY_OWNER'] ?? '').toLowerCase();
+  return RSPM_DOGFOOD_MACOS_ORGS.includes(owner);
+}
+
 async function setupRLibrary(version: IRVersion) {
   let profilePath: fs.PathLike | fs.promises.FileHandle;
   if (IS_WINDOWS) {
@@ -620,7 +668,7 @@ async function setupRLibrary(version: IRVersion) {
 
   let rspm = process.env["RSPM"] ? `'${process.env["RSPM"]}'` : "NULL";
 
-  if (rspm === "NULL" && core.getInput("use-public-rspm") === "true") {
+  if (rspm === "NULL" && shouldUsePublicRspm()) {
     // if we are on R 3.6.x, we use an RSPM snapshot
     const pin36: boolean =
       !process.env['RSPM_PIN_3_6'] && !!version.version.match(/^3[.]6[.]/);
@@ -645,6 +693,9 @@ async function setupRLibrary(version: IRVersion) {
       codename = codename.trim();
 
       rspm = `'https://packagemanager.posit.co/cran/__linux__/${codename}/${snapshot}'`;
+    }
+    if (IS_MAC) {
+      rspm = `'https://packagemanager.posit.co/cran/${snapshot}'`;
     }
   }
 
@@ -673,13 +724,13 @@ async function setupRLibrary(version: IRVersion) {
         : `"${core.getInput("http-user-agent")}"`;
   }
 
-  // Split the repositories by whitespace and then quote each entry joining with commas
-  let extra_repositories = core.getInput("extra-repositories");
+  const repos_raw = core.getMultilineInput("extra-repositories", { trimWhitespace: true });
+  let extra_repositories = "";
 
-  // Prepend a , if there are extra repositories
-  if (extra_repositories) {
-    extra_repositories = extra_repositories
-      .split(/\s+/)
+  if (repos_raw.length > 0) {
+    extra_repositories = repos_raw
+      .flatMap((x) => x.split(/[\s,]+/))
+      .filter((x) => x.length > 0)
       .map((x) => `"${x}"`)
       .join(",");
     extra_repositories = ",\n    " + extra_repositories;
@@ -718,15 +769,20 @@ function setREnvironmentVariables() {
   if (!process.env["NOT_CRAN"]) core.exportVariable("NOT_CRAN", "true");
 }
 
+async function getJSON<T>(url: string): Promise<T | undefined> {
+  const response = await fetch(url, {
+    headers: { "User-Agent": "setup-r" },
+  });
+  if (!response.ok) return undefined;
+  return (await response.json()) as T;
+}
+
 // Need to keep this for setting the HTTP User-Agent header to
 // R-release for RSPM
 async function getReleaseVersion(platform: string): Promise<string> {
-  let rest: restm.RestClient = new restm.RestClient("setup-r");
-  let tags: IRRef = (
-    await rest.get<IRRef>(
-      util.format("https://api.r-hub.io/rversions/r-release-%s", platform),
-    )
-  ).result || { version: "" };
+  const tags = (await getJSON<IRRef>(
+    util.format("https://api.r-hub.io/rversions/r-release-%s", platform),
+  )) || { version: "" };
 
   return tags.version;
 }
@@ -749,21 +805,20 @@ export async function determineVersion(version: string): Promise<IRVersion> {
     version = version.replace(/^oldrel[-]/, "oldrel/");
   }
 
-  let rest: restm.RestClient = new restm.RestClient("setup-r");
   let os: string = OS != "linux" ? OS : await getLinuxPlatform();
   let url: string =
     "https://api.r-hub.io/rversions/resolve/" + version + "/" + os;
   if (ARCH) {
     url = url + "/" + ARCH;
   }
-  var tags = (await rest.get<IRVersion>(url)).result;
+  var tags = await getJSON<IRVersion>(url);
 
   if (!tags) {
     // if arm mac, try intel as well
     if (OS == "mac" && ARCH == "arm64") {
       let url2: string =
 	"https://api.r-hub.io/rversions/resolve/" + version + "/" + OS;
-      tags = (await rest.get<IRVersion>(url2)).result;
+      tags = await getJSON<IRVersion>(url2);
       if (!tags) {
         throw new Error(`Failed to resolve R version ${version} at ${url} and ${url2}`);
       }

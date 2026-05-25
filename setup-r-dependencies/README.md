@@ -23,7 +23,7 @@ Inputs available
 - `dependencies` - default `'"all"'`. Types of dependencies to install. By
   default all direct dependencies of the current package are installed, and
   hard dependencies of these direct dependencies.
-  If you only want to install hard (required) dependecies, use
+  If you only want to install hard (required) dependencies, use
   `dependencies: '"hard"'`.
   See also the `needs` and `extra-packages` parameters. This parameter must
   be a valid R expression, and it is passed to the `dependencies` argument
@@ -58,7 +58,7 @@ Inputs available
   are a version number number (without the `v` prefix), and 'pre-release'.
 - `upgrade` - Whether to install the latest available versions of the
   dependencies. Must be an R expression. See the README for details if
-  you need quoting. Defaults to `FALSE`.
+  you need quoting. Defaults to `'FALSE'`, enable with `'TRUE'`.
 - `working-directory` - default `'.'`. If the DESCRIPTION file is not in the
   root directory of your repository.
 
@@ -95,11 +95,13 @@ recent static pak builds available for:
 
 - x86_64 Linux, for the last 5 R releases and R-devel (currently this is
   R 3.5.x through R 4.2.x and R-devel).
-- x86_64 macOS, for the last 5 R releases and R-devel.
-- Windows (x86_64 and i386), for the last 5 R releases and R-devel.
+- x86_64 and arm64 macOS, for the last 5 R releases and R-devel.
+- x86_64 (and i386 for older R versions) Windows, for the last 5 R
+  releases and R-devel.
 
 There are typically less recent builds for
 
+- aarch64 Windows, from R 4.4.0, including R-next and R-devel.
 - arm64 macOS, from R 4.2.x, but at most the last 5 R releases, and R devel.
 
 See https://github.com/r-lib/pak#installation for the most accurate
@@ -216,6 +218,33 @@ to install an embedded test package you can write:
     extra-packages: any::pkgdown, local::., local::./tests/testthat/testpkg
 ...
 ```
+
+## Installing specific versions of dependencies
+
+If you want to run a workflow with specific versions of R package
+dependencies, one good way to do that is adding these package versions
+to `extra-packages`. If you regularly do this, you could modify your
+workflow file to add an `extra-packages` input to `workflow_dispatch`:
+
+```yaml
+  workflow_dispatch:
+    inputs:
+      extra-packages:
+        description: 'extra package to install for the runs (like a dev version of one of the deps) - comma separated'
+        required: false
+        type: string
+```
+
+```yaml
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          extra-packages: >
+            any::rcmdcheck,
+            ${{ github.event.inputs.extra-packages }}
+          needs: check
+```
+
+(Cf. https://github.com/r-lib/actions/issues/958#issue-2775898508.)
 
 ## System dependencies
 

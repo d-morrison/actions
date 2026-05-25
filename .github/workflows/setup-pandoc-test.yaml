@@ -25,13 +25,17 @@ jobs:
       fail-fast: false
       matrix:
         config:
-          - { os: macos-14       }
-          - { os: macos-13       }
-          - { os: windows-latest }
-          - { os: ubuntu-latest  }
+          - { os: macos-26         }
+          - { os: macos-26-intel   }
+          - { os: macos-15         }
+          - { os: macos-15-intel   }
+          - { os: windows-latest   }
+          - { os: ubuntu-latest    }
+          - { os: ubuntu-24.04-arm }
+          - { os: ubuntu-22.04-arm }
 
     steps:
-      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - uses: ./setup-pandoc
         with:
@@ -45,18 +49,3 @@ jobs:
 
       - run: where.exe pandoc
         if: ${{ runner.os == 'Windows' }}
-
-  linux-arm64:
-    runs-on: [self-hosted, linux, ARM64]
-    name: arm64 Linux
-    container:
-      image: "ubuntu:22.04"
-
-    steps:
-      - uses: actions/checkout@0ad4b8fadaa221de15dcec353f45205ec38ea70b
-      - uses: ./setup-pandoc
-        with:
-          pandoc-version: ${{ github.event.inputs.version || '3.1.11' }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-      - run: pandoc --version
-      - run: which pandoc

@@ -5,11 +5,11 @@ inputs:
   cache:
     description: 'Whether packages should be cached across runs or not. If `"always"` is provided, the package cache will be saved even if the workflow fails.'
     required: true
-    default: true
+    default: 'true'
   cache-version:
     description: 'The version of the cache, change this from the default (1) to start over with a fresh cache. Ignored if cache: false'
     required: true
-    default: 1
+    default: '1'
   extra-packages:
     description: 'Any extra packages to install outside of the packages listed in the dependencies'
   needs:
@@ -18,7 +18,16 @@ inputs:
     description: 'Which package(s) to install.'
     default: 'deps::., any::sessioninfo'
   pak-version:
-    description: 'Which pak version to use. Possible values are "stable", "rc" and "devel".'
+    description: |
+      Which pak version to use. Possible values are "stable", "rc",
+      "devel", "none", "repo". The first three install pak from our
+      repository at GitHub Pages.
+      "none" will skip pak installation. Use this if you want to install
+      pak yourself. Set the `R_LIB_FOR_PAK` environment variable to point
+      to the library where pak is installed.
+      `repo` means that the action will install pak from the configured
+      repositories, using `install.packages()`. `repo` is appropriate on
+      systems that do not have access to our pak repository on GitHub.
     default: 'stable'
   working-directory:
     description: 'Using the working-directory keyword, you can specify the working directory of where "pkg_deps" command searches for dependencies in the "DESCRIPTION" file.'
@@ -30,14 +39,13 @@ inputs:
     description: 'Whether to install the latest available versions of the dependencies. Must be an R expression. See the README for details if you need quoting.'
     default: 'FALSE'
   lockfile-create-lib:
-    description: 'The package library to consider when creating the pak lockfile. This is passed to the `lib` argument of `pak::lockfile_create()`. Defaults to an empty library, for reproducibility. Must be an R expression. Note that it often needs to be quoted in YAML, see the README for detail\
-s.'
+    description: 'The package library to consider when creating the pak lockfile. This is passed to the `lib` argument of `pak::lockfile_create()`. Defaults to an empty library, for reproducibility. Must be an R expression. Note that it often needs to be quoted in YAML, see the README for details.'
     default: 'NULL'
   install-pandoc:
     description: 'Whether to install pandoc. By default it is installed if it is not on the PATH and the local package suggests or depends on the rmarkdown package.'
   pandoc-version:
     description: 'Pandoc version to install.'
-    default: '3.1.11'
+    default: '3.8.3'
   install-quarto:
     description: |
       Whether to install quarto. If it is 'auto' (the default), it is
@@ -59,20 +67,34 @@ runs:
         run: |
           # Set site library path
           cat("::group::Set site library path\n")
+          libpak <- Sys.getenv("R_LIB_FOR_PAK")
+          if (libpak != "") {
+            message("R_LIB_FOR_PAK is already set to ", libpak)
+          }
           if (Sys.getenv("RENV_PROJECT") != "") {
             message("renv project detected, no need to set R_LIBS_SITE")
-            cat(sprintf("R_LIB_FOR_PAK=%s\n", .libPaths()[1]), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
+            if (libpak == "") {
+              cat(sprintf("R_LIB_FOR_PAK=%s\n", .libPaths()[1]), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
+              message("Setting R_LIB_FOR_PAK to ", .libPaths()[1])
+            }
             q("no")
           }
           lib <- Sys.getenv("R_LIBS_SITE")
           if (lib == "") {
             lib <- file.path(dirname(.Library), "site-library")
             cat(sprintf("R_LIBS_SITE=%s\n", lib), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
-            cat(sprintf("R_LIB_FOR_PAK=%s\n", lib), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
             message("Setting R_LIBS_SITE to ", lib)
+            if (libpak == "") {
+              cat(sprintf("R_LIB_FOR_PAK=%s\n", lib), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
+              message("Setting R_LIB_FOR_PAK to ", lib)
+            }
           } else {
             message("R_LIBS_SITE is already set to ", lib)
-            cat(sprintf("R_LIB_FOR_PAK=%s\n", strsplit(lib, .Platform$path.sep)[[1]][[1]]), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
+            if (libpak == "") {
+              plib <- strsplit(lib, .Platform$path.sep)[[1]][[1]]
+              cat(sprintf("R_LIB_FOR_PAK=%s\n", plib), file = Sys.getenv("GITHUB_ENV"), append = TRUE)
+              message("Setting R_LIB_FOR_PAK to ", plib)
+            }
           }
           if (nchar("${{ env.R_LIBS_USER && 'ok' || '' }}") == 0) {
             message("R_LIBS_USER GH env var is unset, setting now: ", Sys.getenv("R_LIBS_USER"))
@@ -80,6 +102,8 @@ runs:
           } else {
             message("R_LIBS_USER GH env var is already set: ", Sys.getenv("R_LIBS_USER"))
           }
+          dir.create(Sys.getenv("R_LIBS_SITE"), recursive = TRUE, showWarnings = FALSE)
+          dir.create(Sys.getenv("R_LIBS_USER"), recursive = TRUE, showWarnings = FALSE)
           cat("::endgroup::\n")
         shell: Rscript {0}
 
@@ -90,13 +114,17 @@ runs:
           cat("::group::Install pak\n")
           lib <- Sys.getenv("R_LIB_FOR_PAK")
           dir.create(lib, showWarnings = FALSE, recursive = TRUE)
-          install.packages("pak", lib = lib, repos = sprintf(
-            "https://r-lib.github.io/p/pak/%s/%s/%s/%s",
-            "${{ inputs.pak-version }}",
-            .Platform$pkgType,
-            R.Version()$os,
-            R.Version()$arch
-          ))
+          if ("${{ inputs.pak-version }}" == "repo") {
+            install.packages("pak", lib = lib)
+          } else {
+            install.packages("pak", lib = lib, repos = sprintf(
+              "https://r-lib.github.io/p/pak/%s/%s/%s/%s",
+              "${{ inputs.pak-version }}",
+              .Platform$pkgType,
+              R.Version()$os,
+              R.Version()$arch
+            ))
+          }
           cat("::endgroup::\n")
         shell: Rscript {0}
 
@@ -107,9 +135,18 @@ runs:
           echo "::group::Install pak"
           if which sudo >/dev/null; then SUDO="sudo -E --preserve-env=PATH env"; else SUDO=""; fi
           $SUDO R -q -e 'dir.create(Sys.getenv("R_LIB_FOR_PAK"), recursive = TRUE, showWarnings = FALSE)'
-          $SUDO R -q -e 'install.packages("pak", lib = Sys.getenv("R_LIB_FOR_PAK"), repos = sprintf("https://r-lib.github.io/p/pak/%s/%s/%s/%s", "${{ inputs.pak-version }}", .Platform$pkgType, R.Version()$os, R.Version()$arch))'
+          $SUDO R -q -e 'if ("${{ inputs.pak-version }}" == "repo") { install.packages("pak", lib = Sys.getenv("R_LIB_FOR_PAK")) } else { install.packages("pak", lib = Sys.getenv("R_LIB_FOR_PAK"), repos = sprintf("https://r-lib.github.io/p/pak/%s/%s/%s/%s", "${{ inputs.pak-version }}", .Platform$pkgType, R.Version()$os, R.Version()$arch)) }'
           echo "::endgroup::"
         shell: bash
+
+      - name: Repo status
+        run: |
+          # Repo status
+          cat("::group::Repo status\n")
+          options(width = 1000)
+          pak::repo_status()
+          cat("::endgroup::\n")
+        shell: Rscript {0}
 
       - name: Query dependencies
         id: install
@@ -117,6 +154,7 @@ runs:
           # Dependency resolution
           cat("::group::Dependency resolution\n")
           cat("os-version=", sessionInfo()$running, "\n", file = Sys.getenv("GITHUB_OUTPUT"), sep = "", append = TRUE)
+          cat("r-arch=", R.Version()$arch, "\n", file = Sys.getenv("GITHUB_OUTPUT"), sep = "", append = TRUE)
           r_version <-
             if (grepl("development", R.version.string)) {
               pdf(tempfile())
@@ -128,6 +166,7 @@ runs:
             }
           cat("r-version=", r_version, "\n", file = Sys.getenv("GITHUB_OUTPUT"), sep = "", append = TRUE)
           needs <- sprintf("Config/Needs/%s", strsplit("${{ inputs.needs }}", "[[:space:],]+")[[1]])
+          if (length(needs) == 0L) needs <- NULL
           deps <- strsplit("${{ inputs.packages }}", "[[:space:],]+")[[1]]
           extra_deps <- strsplit("${{ inputs.extra-packages }}", "[[:space:],]+")[[1]]
           dir.create(".github", showWarnings=FALSE)
@@ -147,19 +186,36 @@ runs:
         shell: Rscript {0}
         working-directory: ${{ inputs.working-directory }}
 
+      - name: Adjust PATH to avoid using zstd from Rtools
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo 'C:/tools/zstd' >> $GITHUB_PATH
+
       - name: R package cache
-        if: inputs.cache != 'false'
-        uses: actions/cache@v4
+        if: inputs.cache == 'true'
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae
         with:
           path: |
             ${{ env.R_LIBS_USER }}/*
             renv/library
             !${{ env.R_LIBS_USER }}/pak
             !${{ env.R_LIBS_USER }}/_cache
-          key: ${{ format('{0}-{1}-{2}-{3}', steps.install.outputs.os-version, steps.install.outputs.r-version, inputs.cache-version, hashFiles(format('{0}/.github/pkg.lock', inputs.working-directory ))) }}
-          restore-keys: ${{ format('{0}-{1}-{2}-', steps.install.outputs.os-version, steps.install.outputs.r-version, inputs.cache-version) }}
-          # Used to save package installation on troublesome Actions
-          save-always: ${{ inputs.cache == 'always' }}
+          key: ${{ format('{0}-{1}-{2}-{3}-{4}', steps.install.outputs.os-version, steps.install.outputs.r-version, steps.install.outputs.r-arch, inputs.cache-version, hashFiles(format('{0}/.github/pkg.lock', inputs.working-directory ))) }}
+          restore-keys: ${{ format('{0}-{1}-{2}-{3}-', steps.install.outputs.os-version, steps.install.outputs.r-version, steps.install.outputs.r-arch, inputs.cache-version) }}
+
+      - name: R package cache restore
+        id: cache-packages-restore
+        if: inputs.cache == 'always'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: |
+            ${{ env.R_LIBS_USER }}/*
+            renv/library
+            !${{ env.R_LIBS_USER }}/pak
+            !${{ env.R_LIBS_USER }}/_cache
+          key: ${{ format('{0}-{1}-{2}-{3}-{4}', steps.install.outputs.os-version, steps.install.outputs.r-version, steps.install.outputs.r-arch, inputs.cache-version, hashFiles(format('{0}/.github/pkg.lock', inputs.working-directory ))) }}
+          restore-keys: ${{ format('{0}-{1}-{2}-{3}-', steps.install.outputs.os-version, steps.install.outputs.r-version, steps.install.outputs.r-arch, inputs.cache-version) }}
 
       - name: Install dependencies
         run: |
@@ -206,7 +262,7 @@ runs:
 
       - name: Install pandoc if needed
         if: ${{ steps.check-pandoc.outputs.install == 'true' }}
-        uses: r-lib/actions/setup-pandoc@v2
+        uses: r-lib/actions/setup-pandoc@9f58233a78a2a9fd874714be10f8bba627233339
         with:
           pandoc-version: ${{ inputs.pandoc-version }}
 
@@ -238,7 +294,7 @@ runs:
 
       - name: Install quarto if needed
         if: ${{ steps.check-quarto.outputs.install == 'true' }}
-        uses: quarto-dev/quarto-actions/setup@87b35bb88b36317fa36b5189e9553b4164a5c5a3
+        uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b
         with:
           version: ${{ inputs.quarto-version }}
 
@@ -267,3 +323,14 @@ runs:
           if command -v /c/Rtools/bin/tar && /c/Rtools/bin/tar --version | grep -q 'tar (GNU tar) 1.30'
             then echo 'C:/Program Files/Git/usr/bin' >> $GITHUB_PATH
           fi
+
+      - name: R package cache save
+        if: ${{ always() && steps.cache-packages-restore.outputs.cache-hit != 'true' && inputs.cache == 'always' }}
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae
+        with:
+          path: |
+            ${{ env.R_LIBS_USER }}/*
+            renv/library
+            !${{ env.R_LIBS_USER }}/pak
+            !${{ env.R_LIBS_USER }}/_cache
+          key: ${{ steps.cache-packages-restore.outputs.cache-primary-key }}

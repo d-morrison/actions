@@ -21,12 +21,12 @@ inputs:
     description: |
       Whether to upload all testthat snapshots as an artifact. Possible values are 'true',
       'false', 'always'.
-    default: false
+    default: 'false'
   upload-results:
     description: |
       Whether to upload check results for successful runs too. If 'never',
       then it does not upload the results, even on failure.
-    default: false
+    default: 'false'
   artifact-name:
     description: |
       Use this to override the default artifact name for the check results.
@@ -62,14 +62,14 @@ runs:
 
     - name: Upload check results
       if: ${{ (failure() && inputs.upload-results != 'never') || (inputs.upload-results != 'false' && inputs.upload-results != 'never') }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: ${{ inputs.artifact-name || format('{0}-{1}-r{2}-{3}-results', runner.os, runner.arch, matrix.config.r, matrix.config.id || strategy.job-index ) }}
         path: ${{ steps.rcmdcheck.outputs.check-dir-path }}
 
     - name: Upload snapshots
       if: ${{ (failure() && inputs.upload-snapshots == 'always') || inputs.upload-snapshots != 'false' }}
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: ${{ inputs.snapshot-artifact-name || format('{0}-{1}-r{2}-{3}-testthat-snapshots', runner.os, runner.arch, matrix.config.r, matrix.config.id || strategy.job-index ) }}
         path: ${{ steps.rcmdcheck.outputs.check-dir-path }}/**/tests*/testthat/_snaps
